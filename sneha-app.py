@@ -45,12 +45,16 @@ st.download_button(
     mime='text/csv',
 )
 
-st.markdown("""
----
-**🧠 Built by:** Sneha Banerjee  
-**🔗 LinkedIn:** https://www.linkedin.com/in/sneha-banerjee/  
-**📊 Data Sources:**  
-- Yahoo Finance API (`yfinance`)  
-- SQLite Local Database  
-""")
+st.markdown(
+    """
+    <div style='text-align: center; color: gray; font-size: 0.9em; margin-top: 50px;'>
+        🧠 Built by Sneha Banerjee | 
+        <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a> 
+        &nbsp;&nbsp;|&nbsp;&nbsp; 📊 Data Sources: Yahoo Finance 
+        &nbsp;&nbsp;|&nbsp;&nbsp; 🛠 Tools: Python, SQLite, Streamlit, pandas, yfinance
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 
