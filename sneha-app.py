@@ -44,3 +44,13 @@ st.download_button(
     file_name='stock_data_filtered.csv',
     mime='text/csv',
 )
+
+st.markdown("""
+---
+**🧠 Built by:** Sneha Banerjee  
+**🔗 LinkedIn:** https://www.linkedin.com/in/sneha-banerjee/  
+**📊 Data Sources:**  
+- Yahoo Finance API (`yfinance`)  
+- SQLite Local Database  
+""")
+
