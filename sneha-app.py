@@ -33,4 +33,14 @@ df_ma = df_filtered.pivot(index='Date', columns='Ticker', values='Close').rollin
 st.subheader(f"Adjusted Close Price (with {adjustment}% simulation)")
 st.line_chart(df_pivot)
 
-st.subheader(f"{ma_window}-d_
+st.subheader(f"{ma_window}-day Moving Average of Close Price")
+st.line_chart(df_ma)
+
+# --- 8️⃣ Download CSV button ---
+csv = df_filtered.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="Download Filtered Data as CSV",
+    data=csv,
+    file_name='stock_data_filtered.csv',
+    mime='text/csv',
+)
