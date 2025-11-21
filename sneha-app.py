@@ -1,35 +1,50 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import yfinance as yf
 import datetime
-import os
-import subprocess
 
-DB_PATH = "stock_data.db"
+# --- 0️⃣ Incremental ETL before loading data ---
+def run_etl():
+    tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
+    today = datetime.date.today()
+    today_str = today.strftime("%Y-%m-%d")
 
-# --- 0️⃣ Optional: Auto-run ETL if DB not updated today ---
-def is_db_up_to_date(db_path):
-    if not os.path.exists(db_path):
-        return False
-    conn = sqlite3.connect(db_path)
-    last_date = pd.read_sql("SELECT MAX(date) AS max_date FROM stock_prices", conn).iloc[0,0]
+    conn = sqlite3.connect("stock_data.db")
+    try:
+        last_date = pd.read_sql("SELECT MAX(date) as last_date FROM stock_prices", conn).iloc[0,0]
+        if last_date is not None:
+            start_date = (pd.to_datetime(last_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            start_date = "2024-01-01"
+    except:
+        start_date = "2024-01-01"
+
+    if pd.to_datetime(start_date) > today:
+        conn.close()
+        return
+
+    data = yf.download(
+        tickers,
+        start=start_date,
+        end=today_str,
+        auto_adjust=False,
+        progress=False
+    )
+
+    if not data.empty:
+        df_new = data.stack(level=1).rename_axis(['date', 'ticker']).reset_index()
+        df_new.columns = [col.lower().replace(" ", "_") for col in df_new.columns]
+        df_new['date'] = df_new['date'].astype(str)
+        df_new.to_sql("stock_prices", conn, if_exists="append", index=False)
     conn.close()
-    if last_date is None:
-        return False
-    return str(datetime.date.today()) <= str(last_date)
 
-if not is_db_up_to_date(DB_PATH):
-    st.info("Updating stock data...")
-    subprocess.run(["python3", "Stock Market data pull- ETL-Sneha Banerjee.py"])
-    st.success("Stock data updated!")
+run_etl()
 
 # --- 1️⃣ Load data from SQLite ---
-conn = sqlite3.connect(DB_PATH)
+conn = sqlite3.connect("stock_data.db")
 df = pd.read_sql("SELECT * FROM stock_prices", conn)
 conn.close()
-
-# --- Ensure consistent column names ---
-df.columns = [col.lower() for col in df.columns]
 
 # --- 2️⃣ Sidebar options ---
 tickers = df['ticker'].unique().tolist()
@@ -45,7 +60,6 @@ df_filtered['adjusted_close'] = df_filtered['close'] * (1 + adjustment/100)
 # --- 4️⃣ Dashboard title ---
 st.title("📈 Stock Market Intelligence Dashboard")
 st.write(f"Data for selected tickers with {adjustment}% hypothetical adjustment")
-st.write(f"Latest Trading Date: {df_filtered['date'].max()}")
 
 # --- 5️⃣ Display table ---
 st.dataframe(df_filtered[['date','ticker','close','adjusted_close','volume']].sort_values(['date','ticker']))
@@ -74,7 +88,8 @@ st.download_button(
 st.markdown(
     """
     <div style='text-align: center; color: gray; font-size: 0.9em; margin-top: 100px;'>
-        🧠 Built by Sneha Banerjee | <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a><br>
+        🧠 Built by Sneha Banerjee | 
+        <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a><br>
         📊 Data Sources: Yahoo Finance<br>
         🛠 Tools: Python, SQLite, Streamlit, pandas, yfinance
     </div>
