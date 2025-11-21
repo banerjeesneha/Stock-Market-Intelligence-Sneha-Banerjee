@@ -8,7 +8,7 @@ import yfinance as yf
 def run_etl():
     tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
     start_date = "2024-01-01"
-    today = pd.Timestamp(datetime.date.today())  # ✅ Fix: convert today to Timestamp
+    today = pd.Timestamp(datetime.date.today())  # ✅ pandas Timestamp
 
     if pd.to_datetime(start_date) > today:
         print("❌ Start date is in the future.")
@@ -33,6 +33,9 @@ def run_etl():
 conn = sqlite3.connect("stock_data.db")
 df = pd.read_sql("SELECT * FROM stock_prices", conn)
 conn.close()
+
+# Convert all columns to lowercase to avoid KeyError
+df.columns = [col.lower() for col in df.columns]
 
 # --- 2️⃣ Sidebar options ---
 tickers = df['ticker'].unique().tolist()
