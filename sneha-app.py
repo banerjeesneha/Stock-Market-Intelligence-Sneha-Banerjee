@@ -1,64 +1,76 @@
-import streamlit as st
-import pandas as pd
+import os
 import sqlite3
+import pandas as pd
+import streamlit as st
+import yfinance as yf
+from datetime import date
 
-# --- Load latest data from SQLite ---
-conn = sqlite3.connect("stock_data.db")
+DB_FILE = "stock_data.db"
+
+# --- 1️⃣ Run ETL if DB is missing ---
+if not os.path.exists(DB_FILE):
+    st.warning("Database not found. Pulling latest stock data...")
+    
+    tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
+    today = date.today().strftime("%Y-%m-%d")
+    
+    data = yf.download(tickers, start="2024-01-01", end=today, auto_adjust=False, progress=False)
+    if data.empty:
+        st.error("No data returned. Check tickers or connection.")
+        st.stop()
+    
+    df = data.stack(level=1).rename_axis(['date', 'ticker']).reset_index()
+    df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+    df = df.sort_values(by='date', ascending=False)
+    
+    conn = sqlite3.connect(DB_FILE)
+    df.to_sql("stock_prices", conn, if_exists="replace", index=False)
+    conn.close()
+    st.success(f"ETL complete. Latest data through: {today}")
+
+# --- 2️⃣ Load data from SQLite ---
+conn = sqlite3.connect(DB_FILE)
 df = pd.read_sql("SELECT * FROM stock_prices", conn)
 conn.close()
 
-# --- Sort by most recent first ---
+# --- 3️⃣ Ensure column names exist ---
+if 'date' not in df.columns or 'ticker' not in df.columns:
+    st.error("Database columns missing. Please check ETL output.")
+    st.stop()
+
 df['date'] = pd.to_datetime(df['date'])
 df = df.sort_values(by='date', ascending=False)
 
-# --- Sidebar options ---
+# --- Sidebar & dashboard (unchanged) ---
 tickers = df['ticker'].unique().tolist()
 selected_tickers = st.sidebar.multiselect("Select Tickers", tickers, default=tickers)
-
 adjustment = st.sidebar.slider("Simulate % Change in Stock Price", -20, 20, 0)
 ma_window = st.sidebar.slider("Moving Average Window (days)", 5, 50, 10)
 
-# --- Filter and apply what-if adjustment ---
 df_filtered = df[df['ticker'].isin(selected_tickers)].copy()
 df_filtered['adjusted_close'] = df_filtered['close'] * (1 + adjustment/100)
 
-# --- Dashboard title ---
 st.title("📈 Stock Market Intelligence Dashboard")
 st.write(f"Data for selected tickers with {adjustment}% hypothetical adjustment")
 
-# --- Display table ---
-st.dataframe(
-    df_filtered[['date','ticker','close','adjusted_close','volume']].sort_values(['date','ticker'], ascending=[False, True])
-)
+st.dataframe(df_filtered[['date','ticker','close','adjusted_close','volume']].sort_values(['date','ticker'], ascending=[False, True]))
 
-# --- Pivot for charts ---
 df_pivot = df_filtered.pivot(index='date', columns='ticker', values='adjusted_close')
 df_ma = df_filtered.pivot(index='date', columns='ticker', values='close').rolling(ma_window).mean()
 
-# --- Line charts ---
 st.subheader(f"Adjusted Close Price (with {adjustment}% simulation)")
 st.line_chart(df_pivot)
 
 st.subheader(f"{ma_window}-day Moving Average of Close Price")
 st.line_chart(df_ma)
 
-# --- Download CSV button ---
 csv = df_filtered.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download Filtered Data as CSV",
-    data=csv,
-    file_name='stock_data_filtered.csv',
-    mime='text/csv',
-)
+st.download_button("Download Filtered Data as CSV", data=csv, file_name='stock_data_filtered.csv', mime='text/csv')
 
-# --- Footer ---
-st.markdown(
-    """
-    <div style='text-align: center; color: gray; font-size: 0.9em; margin-top: 100px;'>
-        🧠 Built by Sneha Banerjee | <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a>
-        <br>📊 Data Sources: Yahoo Finance
-        <br>🛠 Tools: Python, SQLite, Streamlit, pandas, yfinance
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div style='text-align: center; color: gray; font-size: 0.9em; margin-top: 100px;'>
+🧠 Built by Sneha Banerjee | <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a><br>
+📊 Data Sources: Yahoo Finance<br>
+🛠 Tools: Python, SQLite, Streamlit, pandas, yfinance
+</div>
+""", unsafe_allow_html=True)
