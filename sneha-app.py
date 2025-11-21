@@ -1,45 +1,33 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import yfinance as yf
 import datetime
+import yfinance as yf
 
-# --- 0️⃣ Incremental ETL before loading data ---
+# --- 0️⃣ Optional: Run ETL to refresh data ---
 def run_etl():
     tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
-    today = datetime.date.today()
-    today_str = today.strftime("%Y-%m-%d")
-
-    conn = sqlite3.connect("stock_data.db")
-    try:
-        last_date = pd.read_sql("SELECT MAX(date) as last_date FROM stock_prices", conn).iloc[0,0]
-        if last_date is not None:
-            start_date = (pd.to_datetime(last_date) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        else:
-            start_date = "2024-01-01"
-    except:
-        start_date = "2024-01-01"
+    start_date = "2024-01-01"
+    today = pd.Timestamp(datetime.date.today())  # ✅ Fix: convert today to Timestamp
 
     if pd.to_datetime(start_date) > today:
-        conn.close()
+        print("❌ Start date is in the future.")
         return
 
-    data = yf.download(
-        tickers,
-        start=start_date,
-        end=today_str,
-        auto_adjust=False,
-        progress=False
-    )
+    data = yf.download(tickers, start=start_date, end=today.strftime("%Y-%m-%d"), auto_adjust=False)
 
-    if not data.empty:
-        df_new = data.stack(level=1).rename_axis(['date', 'ticker']).reset_index()
-        df_new.columns = [col.lower().replace(" ", "_") for col in df_new.columns]
-        df_new['date'] = df_new['date'].astype(str)
-        df_new.to_sql("stock_prices", conn, if_exists="append", index=False)
+    if data.empty:
+        print("❌ No data returned.")
+        return
+
+    df = data.stack(level=1).rename_axis(['Date', 'Ticker']).reset_index()
+    df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+
+    conn = sqlite3.connect("stock_data.db")
+    df.to_sql("stock_prices", conn, if_exists="replace", index=False)
     conn.close()
-
-run_etl()
+    print(f"✅ ETL complete. Updated through: {today.date()}")
+    print(f"📈 Rows written: {len(df)}")
 
 # --- 1️⃣ Load data from SQLite ---
 conn = sqlite3.connect("stock_data.db")
@@ -89,8 +77,10 @@ st.markdown(
     """
     <div style='text-align: center; color: gray; font-size: 0.9em; margin-top: 100px;'>
         🧠 Built by Sneha Banerjee | 
-        <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a><br>
-        📊 Data Sources: Yahoo Finance<br>
+        <a href="https://www.linkedin.com/in/sneha-banerjee/" target="_blank">LinkedIn</a>
+        <br>
+        📊 Data Sources: Yahoo Finance
+        <br>
         🛠 Tools: Python, SQLite, Streamlit, pandas, yfinance
     </div>
     """,
