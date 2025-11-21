@@ -2,3 +2,5 @@ streamlit
 pandas
 yfinance
 sqlite3
+numpy
+python-dateutil
